@@ -40,68 +40,36 @@ upazillas11 <- st_read("./dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
   mutate(area11 = st_area(geometry) %>% drop_units())
 
 
-# Adjust the coordinate system to that of 1991
+## Adjust the coordinate system to that of 1991
 upazillas91 <- st_transform(upazillas91, crs=st_crs(upazillas91))
 upazillas01 <- st_transform(upazillas01, crs=st_crs(upazillas91))
 upazillas11 <- st_transform(upazillas11, crs=st_crs(upazillas91))
 
-## Mapping of 2011 to 2001
-factory_11 <- st_intersection(upazillas01, upazillas11) %>%
-  
-  # Ignore overlaps with ratio below 0.25. Likely, just errors
-  mutate(overlap_ratio = drop_units(st_area(geometry))/area11) %>%
-  filter(overlap_ratio > 0.25) %>%
-  
-  # We'll use deviation for decision making purpose
-  group_by(admin_name.1) %>%
-  mutate(deviation = abs(overlap_ratio - 0.5)) %>%
-  
-  # We don't need to work with all the columns
-  select(admin_name.01 = admin_name,
-         admin_name.11 = admin_name.1,
-         geometry, overlap_ratio, deviation)
+## Intermediary datasets
+factory_01_to_91 <- st_intersection(upazillas91, upazillas01) %>%
+  mutate(overlap_ratio = drop_units(st_area(geometry))/area91) %>%
+  rename(admin_name.91 = admin_name, admin_name.01 = admin_name.1) %>%
+  filter(0.005 < overlap_ratio & overlap_ratio < 0.995)
 
-map_11_to_01 <- factory_11 %>%
-  filter(deviation > 0.25
-        | deviation < 0.25 & (admin_name.01 == admin_name.11
-        | (admin_name.01 == "comilla sadar (kotwali)" & admin_name.11 == "comilla sadar dakhin")
-        # Not exactly sure about this one
-        | (admin_name.01 == "kulaura" & admin_name.11 == "juri"))) %>%
-  
-  # we don't need geometry and overlap info for the map
-  st_drop_geometry() %>%
-  select(admin_name.01, admin_name.11)
-  
-
-
-## Mapping of 2001 to 1991
-factory_01 <- st_intersection(upazillas91, upazillas01) %>%
-
-  # Ignore overlaps with ratio below 0.25. Likely, just errors
+factory_11_to_01 <- st_intersection(upazillas01, upazillas11) %>%
   mutate(overlap_ratio = drop_units(st_area(geometry))/area01) %>%
-  filter(overlap_ratio > 0.25) %>%
-
-  # We'll use deviation for decision making purpose
-  group_by(admin_name.1) %>%
-  mutate(deviation = abs(overlap_ratio - 0.5)) %>%
-
-  # We don't need to work with all the columns
-  select(admin_name.91 = admin_name,
-         admin_name.01 = admin_name.1,
-         geometry, overlap_ratio, deviation)
+  rename(admin_name.01 = admin_name, admin_name.11= admin_name.1)
+  # filter(0.005 < overlap_ratio & overlap_ratio < 0.995)
 
 
-map_01_to_91 <- factory_01 %>%
-  # Anything above 0.25 deviation is highly likely to be the actual map
-  filter(deviation > 0.25
-         # under 0.25 dev., we're first assigning by name
-         # then, we assign case by case
-         | deviation < 0.25 & (admin_name.91 == admin_name.01
-         # Not sure about the one in the next line
-         | (admin_name.91 == "brahmanbaria sadar" & admin_name.01 == "ashuganj")
-         | (admin_name.91 == "daudkandi" & admin_name.01 == "meghna")
-         | (admin_name.91 == "anowara" & admin_name.01 == "karnafuli"))) %>%
+map_11_to_01 <- factory_11_to_01 %>%
+  
+  # Errors
+  filter(0.005 < overlap_ratio) %>%
 
-  # we don't need geometry and overlap info for the map
-  st_drop_geometry() %>%
-  select(admin_name.91, admin_name.01)
+  group_by(ipum2011) %>%
+  # Assign a 2011 upazilla to 2001 upazilla. If the 2011 map has segments in
+  # multiple 2001 upazilla then pick one with the highest ratio.
+  filter(overlap_ratio == max(overlap_ratio)) %>%
+  ungroup()
+
+  # Note:
+  # map_11_to_01$admin_name.01 %>% unique() %>% length() == 489
+  # upazillas01$admin_name %>% unique() %>% length() == 490
+  # This is because there's no significant (> 0.005) intersection of 2011 upz.
+  # with the 2001 upz. called "Karnafuli"
