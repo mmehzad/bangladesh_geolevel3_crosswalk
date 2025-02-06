@@ -46,30 +46,31 @@ upazillas01 <- st_transform(upazillas01, crs=st_crs(upazillas91))
 upazillas11 <- st_transform(upazillas11, crs=st_crs(upazillas91))
 
 ## Intermediary datasets
-factory_01_to_91 <- st_intersection(upazillas91, upazillas01) %>%
-  mutate(overlap_ratio = drop_units(st_area(geometry))/area91) %>%
-  rename(admin_name.91 = admin_name, admin_name.01 = admin_name.1) %>%
-  filter(0.005 < overlap_ratio & overlap_ratio < 0.995)
-
-factory_11_to_01 <- st_intersection(upazillas01, upazillas11) %>%
-  mutate(overlap_ratio = drop_units(st_area(geometry))/area01) %>%
+up_11_to_01_inter <- st_intersection(upazillas01, upazillas11) %>%
+  mutate(inter_area = drop_units(st_area(geometry)), overlap_ratio = 100*inter_area/area11) %>%
   rename(admin_name.01 = admin_name, admin_name.11= admin_name.1)
-  # filter(0.005 < overlap_ratio & overlap_ratio < 0.995)
 
 
-map_11_to_01 <- factory_11_to_01 %>%
+# sum(up_11_to_01_inter$inter_area)/sum(upazillas01$area01) = 1, so all good
+
+map_11_to_01_per <- up_11_to_01_inter %>%
   
   # Errors
-  filter(0.005 < overlap_ratio) %>%
+  filter(overlap_ratio >99.99)
 
-  group_by(ipum2011) %>%
-  # Assign a 2011 upazilla to 2001 upazilla. If the 2011 map has segments in
-  # multiple 2001 upazilla then pick one with the highest ratio.
-  filter(overlap_ratio == max(overlap_ratio)) %>%
+map_11_to_01_imper <- up_11_to_01_inter %>%
+  
+  # Errors
+  filter(overlap_ratio >0.5 & overlap_ratio <99.99)
+
+# 543 = dim(map_11_to_01_per)[1] + map_11_to_01_imper$admin_name.11 %>% unique() %>% length(), so all good
+
+# combining un-contained area to a greater 2001 area
+# example: 2011 alfadanga = 62.72% 2001 alfadanga + 32.28% 2001 boalmari
+#   so, we assign all the rows with admin_name.11 == "alfadanga" to a
+#   greater geometry of 2001 alfadanga and 2001 boalmari
+greater_region_11_to_01_imper <- left_join(map_11_to_01_imper %>% st_drop_geometry(), upazillas01) %>%
+  st_as_sf() %>%
+  group_by(admin_name.11) %>%
+  mutate(greater_geometry = st_union(geometry), admin_name=NULL) %>%
   ungroup()
-
-  # Note:
-  # map_11_to_01$admin_name.01 %>% unique() %>% length() == 489
-  # upazillas01$admin_name %>% unique() %>% length() == 490
-  # This is because there's no significant (> 0.005) intersection of 2011 upz.
-  # with the 2001 upz. called "Karnafuli"
