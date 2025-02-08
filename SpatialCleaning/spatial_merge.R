@@ -46,7 +46,6 @@ upazillas01 <- st_transform(upazillas01, crs=st_crs(upazillas91))
 upazillas11 <- st_transform(upazillas11, crs=st_crs(upazillas91))
 
 ## Intermediary datasets
-
 up_11_to_01_inter <- st_intersection(upazillas01, upazillas11) %>%
   
   # Containment of 2011 is better captured when 100% of 2011 Up is 2001. To make discussions easier, transformed ratio into %
@@ -56,8 +55,19 @@ up_11_to_01_inter <- st_intersection(upazillas01, upazillas11) %>%
 ## Quality Assurance Test (QAT, sounds a lot like CAT =^. .^=)
 sum(up_11_to_01_inter$inter_area)/sum(upazillas01$area01)  ## = 1, so it's all good
 
+up_01_to_91_inter <- st_intersection(upazillas91, upazillas01) %>%
+  mutate(inter_area = drop_units(st_area(geometry)), overlap_ratio = 100*inter_area/area01) %>%
+  rename(admin_name.91 = admin_name, admin_name.01 = admin_name.1)
+
+## QAT
+sum(up_11_to_01_inter$inter_area)/sum(upazillas91$area91)  ## = 1, so it's all good
+
 # Obtain perfect match
 map_11_to_01_per <- up_11_to_01_inter %>%
+  filter(overlap_ratio >99.99) %>%
+  mutate(matched = 1)
+
+map_01_to_91_per <- up_01_to_91_inter %>%
   filter(overlap_ratio >99.99) %>%
   mutate(matched = 1)
 
@@ -65,11 +75,16 @@ map_11_to_01_per <- up_11_to_01_inter %>%
 map_11_to_01_per %>%
   ggplot() + geom_sf(aes(fill = as.factor(matched)))
 
+map_01_to_91_per %>%
+  ggplot() + geom_sf(aes(fill = as.factor(matched)))
 
+# Obtain imperfect match
 map_11_to_01_imper <- up_11_to_01_inter %>%
-  
   # True overlap where 2011 is not contained in a previous 2011
-  filter(overlap_ratio >0.5 & overlap_ratio <99.5)
+  filter(overlap_ratio >0.5 & overlap_ratio <99.99)
+
+map_01_to_91_imper <- up_01_to_91_inter %>%
+  filter(overlap_ratio >0.5 & overlap_ratio <99.99)
 
 ## QAT
 
@@ -80,6 +95,7 @@ map_11_to_01_imper <- up_11_to_01_inter %>%
   # with the 2001 upz. called "Karnafuli"
 
 dim(map_11_to_01_per)[1] + map_11_to_01_imper$admin_name.11 %>% unique() %>% length()  ## = 543, so all good
+dim(map_01_to_91_per)[1] + map_01_to_91_imper$admin_name.01 %>% unique() %>% length()  ## = 507, so all good
 
 
 ## combining un-contained area to a greater 2001 area
@@ -89,8 +105,12 @@ dim(map_11_to_01_per)[1] + map_11_to_01_imper$admin_name.11 %>% unique() %>% len
 
 ## QAT: lets check if the imperfect match data is in the perfect match or not. Robustness check
 inner_join(map_11_to_01_per %>% st_drop_geometry() %>% select(ipum2001, ipum2011), 
-          map_11_to_01_imper %>% st_drop_geometry() %>% select(ipum2001, ipum2011)) %>% dim()
+           map_11_to_01_imper %>% st_drop_geometry() %>% select(ipum2001, ipum2011)) %>% dim()
+
+inner_join(map_01_to_91_per %>% st_drop_geometry() %>% select(ipum1991, ipum2001), 
+           map_01_to_91_imper %>% st_drop_geometry() %>% select(ipum1991, ipum2001)) %>% dim()
 ## Dim is 0, so the code below works!
+
 
 # We want to keep 2001's geometry. As we'll need to union them
 greater_region_11_to_01_imper <- left_join(map_11_to_01_imper %>% st_drop_geometry(), upazillas01) %>%
@@ -101,6 +121,15 @@ greater_region_11_to_01_imper <- left_join(map_11_to_01_imper %>% st_drop_geomet
   select(ipum2001, ipum2011, geometry) %>%
   mutate(matched = 0, new_matched = 1)
 
+greater_region_01_to_91_imper <- left_join(map_01_to_91_imper %>% st_drop_geometry(), upazillas91) %>%
+  st_as_sf() %>%
+  group_by(ipum2001) %>%
+  mutate(greater_geometry = st_union(geometry), admin_name=NULL) %>%
+  ungroup() %>%
+  select(ipum1991, ipum2001, geometry) %>%
+  mutate(matched = 0, new_matched = 1)
+
+## QAT
 map_check <- map_11_to_01_per %>%
   select(ipum2011, ipum2001, matched) %>% mutate(new_matched = 0) %>%
   rbind(greater_region_11_to_01_imper) 
