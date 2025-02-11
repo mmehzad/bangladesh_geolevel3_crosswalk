@@ -55,19 +55,8 @@ up_11_to_01_inter <- st_intersection(upazillas01, upazillas11) %>%
 ## Quality Assurance Test (QAT, sounds a lot like CAT =^. .^=)
 sum(up_11_to_01_inter$inter_area)/sum(upazillas01$area01)  ## = 1, so it's all good
 
-up_01_to_91_inter <- st_intersection(upazillas91, upazillas01) %>%
-  mutate(inter_area = drop_units(st_area(geometry)), overlap_ratio = 100*inter_area/area01) %>%
-  rename(admin_name.91 = admin_name, admin_name.01 = admin_name.1)
-
-## QAT
-sum(up_11_to_01_inter$inter_area)/sum(upazillas91$area91)  ## = 1, so it's all good
-
 # Obtain perfect match
 map_11_to_01_per <- up_11_to_01_inter %>%
-  filter(overlap_ratio >99.99) %>%
-  mutate(matched = 1)
-
-map_01_to_91_per <- up_01_to_91_inter %>%
   filter(overlap_ratio >99.99) %>%
   mutate(matched = 1)
 
@@ -75,15 +64,9 @@ map_01_to_91_per <- up_01_to_91_inter %>%
 map_11_to_01_per %>%
   ggplot() + geom_sf(aes(fill = as.factor(matched)))
 
-map_01_to_91_per %>%
-  ggplot() + geom_sf(aes(fill = as.factor(matched)))
-
 # Obtain imperfect match
 map_11_to_01_imper <- up_11_to_01_inter %>%
   # True overlap where 2011 is not contained in a previous 2011
-  filter(overlap_ratio >0.5 & overlap_ratio <99.99)
-
-map_01_to_91_imper <- up_01_to_91_inter %>%
   filter(overlap_ratio >0.5 & overlap_ratio <99.99)
 
 ## QAT
@@ -95,7 +78,6 @@ map_01_to_91_imper <- up_01_to_91_inter %>%
   # with the 2001 upz. called "Karnafuli"
 
 dim(map_11_to_01_per)[1] + map_11_to_01_imper$admin_name.11 %>% unique() %>% length()  ## = 543, so all good
-dim(map_01_to_91_per)[1] + map_01_to_91_imper$admin_name.01 %>% unique() %>% length()  ## = 507, so all good
 
 
 ## combining un-contained area to a greater 2001 area
@@ -107,8 +89,6 @@ dim(map_01_to_91_per)[1] + map_01_to_91_imper$admin_name.01 %>% unique() %>% len
 inner_join(map_11_to_01_per %>% st_drop_geometry() %>% select(ipum2001, ipum2011), 
            map_11_to_01_imper %>% st_drop_geometry() %>% select(ipum2001, ipum2011)) %>% dim()
 
-inner_join(map_01_to_91_per %>% st_drop_geometry() %>% select(ipum1991, ipum2001), 
-           map_01_to_91_imper %>% st_drop_geometry() %>% select(ipum1991, ipum2001)) %>% dim()
 ## Dim is 0, so the code below works!
 
 
@@ -116,32 +96,97 @@ inner_join(map_01_to_91_per %>% st_drop_geometry() %>% select(ipum1991, ipum2001
 greater_region_11_to_01_imper <- left_join(map_11_to_01_imper %>% st_drop_geometry(), upazillas01) %>%
   st_as_sf() %>%
   group_by(ipum2011) %>%
-  mutate(greater_geometry = st_union(geometry), admin_name=NULL) %>%
+  mutate(geometry = st_union(geometry), admin_name=NULL) %>%
   ungroup() %>%
   select(ipum2001, ipum2011, geometry) %>%
   mutate(matched = 0, new_matched = 1)
 
+greater_region_11_to_01 <- map_11_to_01_per %>%
+  select(ipum2001, ipum2011, geometry) %>%
+  mutate(matched = 1, new_matched = 0) %>%
+  rbind(greater_region_11_to_01_imper) %>%
+  mutate(area1101 = drop_units(st_area(geometry)))
+
+geolevel3 <- greater_region_11_to_01 %>%
+  group_by(ipum2011) %>%
+  summarise(ipum2001 = paste0(ipum2001, collapse="_")) %>%
+  ungroup() %>%
+  mutate(area1101 = drop_units(st_area(geometry)))
+
+## QAT
+greater_region_11_to_01$ipum2001 %>% unique() %>% length()  # = 508, looks good
+greater_region_11_to_01$ipum2011 %>% unique() %>% length()  # = 543, looks good
+greater_region_11_to_01$geometry %>% unique() %>% length()  # = 543, perfect
+
+# border test with one sample from imperfect and perfect match respectively
+plot((greater_region_11_to_01 %>% filter(ipum2011=="030029003"))$geometry)  # matches the one below
+plot((upazillas01 %>% filter(admin_name=="boalmari" | admin_name=="alfadanga"))$geometry)
+
+plot((map_11_to_01_per %>% filter(ipum2001=="040001008"))$geometry)  # matches the one below
+plot((greater_region_11_to_01 %>% filter(ipum2001=="040001008"))$geometry)
+
+greater_region_11_to_01 %>%
+  ggplot() + geom_sf(aes(fill = as.factor(matched)))
+
+
+## 2001 -> 1991
+up_01_to_91_inter <- st_intersection(upazillas91, geolevel3) %>%
+  mutate(inter_area = drop_units(st_area(geometry)), overlap_ratio = 100*inter_area/area1101)
+
+up_01_to_91_inter$ipum2001 %>% unique() %>% length()  ## = 508 = geolevel3$ipum2001, all good
+sum(up_01_to_91_inter$inter_area)/sum(upazillas91$area91)  ## = 1.0367 != 1, sus
+
+map_01_to_91_per <- up_01_to_91_inter %>%
+  filter(overlap_ratio >99.99) %>%
+  mutate(matched = 1)
+
+map_01_to_91_per$ipum1991 %>% unique() %>% length()  # = 463 < 485, so looks ok
+
+map_01_to_91_imper <- up_01_to_91_inter %>%
+  filter(overlap_ratio >0.5 & overlap_ratio <99.99)
+
+## QAT
+map_01_to_91_per$ipum2001 %>% unique() %>% length()  # = 483
+map_01_to_91_imper$ipum2001 %>% unique() %>% length() # = 28
+# sum = 511. That means there are 3 geolevel3 in both perfect and imperfect match
+
+intersect(map_01_to_91_per$ipum2001, map_01_to_91_imper$ipum2001)  # "020012013" "020030014" "030026095"
+upazillas01 %>% filter(ipum2001=="020012013" | ipum2001=="020030014" | ipum2001=="030026095")
+
+# # if you check those areas, you'll see that the sum of their overlap_ratio doesn't add up to 100.
+# sus_regions <- up_01_to_91_inter %>%
+#   filter(ipum2001=="020012013" | ipum2001=="020030014" | ipum2001=="030026095") %>%
+#   filter(overlap_ratio >0.5)
+
+# will ignore them and wait for chachu's review
+map_01_to_91_per <- map_01_to_91_per %>%
+  filter(!(ipum2001=="020012013" | ipum2001=="020030014" | ipum2001=="030026095"))
+
+map_01_to_91_imper <- map_01_to_91_imper %>%
+  filter(!(ipum2001=="020012013" | ipum2001=="020030014" | ipum2001=="030026095"))
+
+map_01_to_91_per %>%
+  ggplot() + geom_sf(aes(fill = as.factor(matched)))
+
 greater_region_01_to_91_imper <- left_join(map_01_to_91_imper %>% st_drop_geometry(), upazillas91) %>%
   st_as_sf() %>%
   group_by(ipum2001) %>%
-  mutate(greater_geometry = st_union(geometry), admin_name=NULL) %>%
+  mutate(geometry = st_union(geometry), admin_name=NULL) %>%
   ungroup() %>%
   select(ipum1991, ipum2001, geometry) %>%
   mutate(matched = 0, new_matched = 1)
 
-## QAT
-map_check <- map_11_to_01_per %>%
-  select(ipum2011, ipum2001, matched) %>% mutate(new_matched = 0) %>%
-  rbind(greater_region_11_to_01_imper) 
+greater_region_01_to_91 <- map_01_to_91_per %>%
+  select(ipum1991, ipum2001, geometry) %>%
+  mutate(matched = 1, new_matched = 0) %>%
+  rbind(greater_region_01_to_91_imper) %>%
+  mutate(area110191 = drop_units(st_area(geometry)))
 
-new_map <- map_check %>%
+geolevel3 <- greater_region_01_to_91 %>%
   group_by(ipum2001) %>%
-  summarise(geometry = st_union(geometry), matched = mean(matched), new_matched = mean(new_matched))
+  summarise(ipum1991 = paste0(ipum1991, collapse="_")) %>%
+  ungroup() %>%
+  mutate(area110191 = drop_units(st_area(geometry)))
 
-new_map %>%
-  ggplot() + 
-  geom_sf(aes(fill = as.factor(matched)))
-
-new_map %>%
-  ggplot() + 
-  geom_sf(aes(fill = as.factor(new_matched)))
+greater_region_01_to_91 %>%
+  ggplot() + geom_sf(aes(fill = as.factor(matched)))
