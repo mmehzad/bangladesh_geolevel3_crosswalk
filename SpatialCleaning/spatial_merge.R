@@ -18,21 +18,21 @@ conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 
 ## Preparing the data
-upazillas91 <- st_read("./dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
+upazillas91 <- st_read("./SpatialCleaning/dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
   mutate_if(is.character, tolower) %>%
   mutate(area91 = st_area(geometry) %>% drop_units())
 
-upazillas01 <- st_read("./dataset/geo3_bd2001/geo3_bd2001.shp", quiet=TRUE) %>%
+upazillas01 <- st_read("./SpatialCleaning/dataset/geo3_bd2001/geo3_bd2001.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
   mutate_if(is.character, tolower) %>%
   mutate(area01 = st_area(geometry) %>% drop_units())
 
-upazillas11 <- st_read("./dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
+upazillas11 <- st_read("./SpatialCleaning/dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
@@ -71,19 +71,8 @@ map_11_to_01_imper <- up_11_to_01_inter %>%
 
 ## QAT
 
-  # Note:
-  # map_11_to_01$admin_name.01 %>% unique() %>% length() == 489
-  # upazillas01$admin_name %>% unique() %>% length() == 490
-  # This is because there's no significant (> 0.005) intersection of 2011 upz.
-  # with the 2001 upz. called "Karnafuli"
-
 dim(map_11_to_01_per)[1] + map_11_to_01_imper$admin_name.11 %>% unique() %>% length()  ## = 543, so all good
 
-
-## combining un-contained area to a greater 2001 area
-## example: 2011 alfadanga = 62.72% 2001 alfadanga + 32.28% 2001 boalmari
-##   so, we assign all the rows with admin_name.11 == "alfadanga" to a
-##   greater geometry of 2001 alfadanga and 2001 boalmari
 
 ## QAT: lets check if the imperfect match data is in the perfect match or not. Robustness check
 inner_join(map_11_to_01_per %>% st_drop_geometry() %>% select(ipum2001, ipum2011), 
@@ -91,18 +80,35 @@ inner_join(map_11_to_01_per %>% st_drop_geometry() %>% select(ipum2001, ipum2011
 
 ## Dim is 0, so the code below works!
 
+######################### Something is going wrong between here, start
 
-# We want to keep 2001's geometry. As we'll need to union them
+## The problem was noticed when I see that even in 2011 -> 2011 reshaping, we have sum or areas over sum of areas > 1. 
+## This and plots should be a gut check all the time
+
+map_11_to_01_per$ipum2011 %>% unique() %>% length() - map_11_to_01_per$ipum2001 %>% unique() %>% length() != 0
+map_11_to_01_imper$ipum2011 %>% unique() %>% length() - map_11_to_01_imper$ipum2001 %>% unique() %>% length() != 0
+
+# I think we need to remove the duplicates very carefully to create the geo3level and some how keep track of which 2001/2011 impum code belong to which greater region code
+# We want to keep track of names of upazilas as well. not needed right now, but we want them in final product
+## Below is an attempt, but note that the plot(geolevel3) below reveals unmatched areas.
+
+# We want to keep 2001's geometry. As we'll need to union them and remove duplcates
 greater_region_11_to_01_imper <- left_join(map_11_to_01_imper %>% st_drop_geometry(), upazillas01) %>%
-  st_as_sf() %>%
+  st_as_sf() %>% 
   group_by(ipum2011) %>%
   mutate(geometry = st_union(geometry), admin_name=NULL) %>%
   ungroup() %>%
   select(ipum2001, ipum2011, geometry) %>%
+  filter(duplicated(ipum2011) == FALSE) %>%
   mutate(matched = 0, new_matched = 1)
 
-greater_region_11_to_01 <- map_11_to_01_per %>%
+
+greater_region_11_to_01 <- 
+  map_11_to_01_per %>%
   select(ipum2001, ipum2011, geometry) %>%
+  group_by(ipum2001) %>%
+  mutate(geometry = st_union(geometry)) %>%
+  filter(duplicated(ipum2001) == FALSE) %>% 
   mutate(matched = 1, new_matched = 0) %>%
   rbind(greater_region_11_to_01_imper) %>%
   mutate(area1101 = drop_units(st_area(geometry)))
@@ -111,7 +117,13 @@ geolevel3 <- greater_region_11_to_01 %>%
   group_by(ipum2011) %>%
   summarise(ipum2001 = paste0(ipum2001, collapse="_")) %>%
   ungroup() %>%
-  mutate(area1101 = drop_units(st_area(geometry)))
+  filter(duplicated(ipum2001) == FALSE) %>%
+  mutate(area1101 = drop_units(st_area(geometry)), matched = 1)
+
+sum(geolevel3$area1101)/sum(upazillas01$area01)
+
+plot(geolevel3)
+######################### Something is going wrong between here, end
 
 ## QAT
 greater_region_11_to_01$ipum2001 %>% unique() %>% length()  # = 508, looks good
