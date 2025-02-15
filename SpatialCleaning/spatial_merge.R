@@ -175,7 +175,7 @@ map_01_to_91_per$ipum2001 %>% unique() %>% length()  # = 480
 map_01_to_91_imper$ipum2001 %>% unique() %>% length() # = 28
 # sum = 508. Perfect match
 
-intersect(map_01_to_91_per$ipum2001, map_01_to_91_imper$ipum2001)
+# intersect(map_01_to_91_per$ipum2001, map_01_to_91_imper$ipum2001)
 #=> Previously: "020012013" "020030014" "030026095"; Now: character(0). Good sign
 # upazillas01 %>% filter(ipum2001=="020012013" | ipum2001=="020030014" | ipum2001=="030026095")
 
@@ -212,6 +212,7 @@ geolevel3 <- greater_region_01_to_91 %>%
   group_by(ipum2001) %>%
   summarise(ipum1991 = paste0(ipum1991, collapse="_")) %>%
   ungroup() %>%
+  distinct(ipum1991, .keep_all = TRUE) %>%
   mutate(area110191 = drop_units(st_area(geometry)))
 
 greater_region_01_to_91 %>%
