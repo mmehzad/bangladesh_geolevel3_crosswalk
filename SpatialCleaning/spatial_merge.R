@@ -1,4 +1,5 @@
 # install.packages("pacman")
+# install.packages("patchwork")
 
 library(pacman)
 p_load(tidyverse,
@@ -217,3 +218,69 @@ geolevel3 <- greater_region_01_to_91 %>%
 
 greater_region_01_to_91 %>%
   ggplot() + geom_sf(aes(fill = as.factor(matched)))
+
+
+# FROM HERE, WE FIX THE DOUBLE ASSIGNMENT ISSUE
+library(patchwork)
+
+map_check <- function(parent_zilla, ipum2011_upazilla) {
+  p1 <- ggplot(upazillas01 %>% filter(parent %in% c(parent_zilla))) +
+    geom_sf(fill = "blue", alpha = 0.3) +
+    ggtitle("2001")
+  
+  p2 <- ggplot(upazillas11 %>% filter(parent %in% c(parent_zilla))) +
+    geom_sf(fill = "red", alpha = 0.3) +
+    ggtitle("2011")
+  
+  p3 <- ggplot(map_11_to_01_imper_union %>% filter(parent %in% c(parent_zilla))) +
+    geom_sf(fill="orange", alpha = 0.3) +
+    ggtitle("Union'd Map")
+  
+  p4 <- ggplot(upazillas11 %>% filter(ipum2011 == ipum2011_upazilla)) +
+    geom_sf(fill = "purple", alpha = 0.3) +
+    ggtitle("2011 Upazilla")
+
+  p1 + p2 + p3 + p4
+}
+
+
+map_11_to_01_imper_union <- map_11_to_01_imper %>%
+  select(admin_name.01, ipum2001, parent, admin_name.11, ipum2011) %>%
+  st_drop_geometry() %>%
+  left_join(upazillas01, by="ipum2001") %>%
+  select(admin_name.01, ipum2001, parent.x, admin_name.11, ipum2011, geometry) %>%
+  rename(parent = parent.x) %>%
+  
+  group_by(ipum2011) %>%
+  summarise(
+    admin_name.11 = admin_name.11,
+    merged.admin_name.01 = paste0(admin_name.01, collapse="+"),
+    ipum2001 = paste0(ipum2001, collapse="+"),
+    parent = parent,
+    geometry = st_union(geometry)
+  ) %>%
+  unique() %>%
+  ungroup() %>%
+  st_as_sf() %>%
+  
+  mutate(inter_area = drop_units(st_area(geometry)))
+
+# manually sorting out the upzillas with reassignments along with division
+parent_id <- "030026"
+test <- c('060091008', '060091017', '060091020', '060091027', '060091035', '060091038',
+          '060091041', '060091059', '060091062', '060091094', '060091031')
+
+plot_01 <- ggplot(upazillas01 %>% filter(parent == parent_id)) + geom_sf(fill="red") + ggtitle("2001 Zilla")
+plot_11 <- ggplot(upazillas11 %>% filter(parent == parent_id)) + geom_sf(fill="blue") + ggtitle("2011 Zilla")
+plot_union <- ggplot(map_11_to_01_imper_union %>% filter(parent == parent_id)) + geom_sf(fill="purple") + ggtitle("Unioned Region")
+plot_perf <- ggplot(map_11_to_01_per %>% filter(parent == parent_id)) + geom_sf(fill="orange") + ggtitle("Perfect")
+
+plot_01 + plot_11 + plot_union + 
+ggplot(upazillas11 %>% filter(ipum2011 == test[1])) + geom_sf(fill="orange") + ggtitle("Upazilla Check")
+
+# plot((upazillas01 %>% filter(parent == parent_id)))
+# plot((upazillas11 %>% filter(parent == parent_id)))
+# plot((map_11_to_01_imper_union %>% filter(parent == parent_id)))
+# plot((map_11_to_01_per %>% filter(parent == parent_id)))
+# plot((upazillas11 %>% filter(ipum2011 == test[3]))) 
+
