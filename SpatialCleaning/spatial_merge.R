@@ -266,7 +266,7 @@ map_11_to_01_imper_union <- map_11_to_01_imper %>%
   mutate(inter_area = drop_units(st_area(geometry)))
 
 # manually sorting out the upzillas with reassignments along with division
-parent_id <- "030026"
+parent_id <- "060091"
 test <- c('060091008', '060091017', '060091020', '060091027', '060091035', '060091038',
           '060091041', '060091059', '060091062', '060091094', '060091031')
 
@@ -278,9 +278,14 @@ plot_perf <- ggplot(map_11_to_01_per %>% filter(parent == parent_id)) + geom_sf(
 plot_01 + plot_11 + plot_union + 
 ggplot(upazillas11 %>% filter(ipum2011 == test[1])) + geom_sf(fill="orange") + ggtitle("Upazilla Check")
 
-# plot((upazillas01 %>% filter(parent == parent_id)))
-# plot((upazillas11 %>% filter(parent == parent_id)))
-# plot((map_11_to_01_imper_union %>% filter(parent == parent_id)))
-# plot((map_11_to_01_per %>% filter(parent == parent_id)))
-# plot((upazillas11 %>% filter(ipum2011 == test[3]))) 
-
+# parent <- (imper_2011), per_2011 | ipum2001+ipum2001+...
+# 020015 <- (020015061) | 020015061+020015039
+# 020019 <- ???
+# 020084 <- ???
+# 030026 <- ???
+# 030029 <- (030029003), 030029018, | 030029003+030029018
+# 030033 <- (030082076), 030082073, 030082047 | 030082073+030082076
+# 050049 <- no such parent in upazillas11
+# 060058 <- (060058035), 060058014, 060058065 | 060058014+060058065
+# 060090 <- (060090032), 060090050 | 060090032+060090050
+# 060091 <- (060091053), 060091041 | 060091041+060091053
