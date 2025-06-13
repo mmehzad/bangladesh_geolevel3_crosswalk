@@ -2,6 +2,9 @@ library(sf)
 library(dplyr)
 library(igraph)
 
+library(units)
+library(janitor)
+
 threshold <- 0.01  # 1% overlap
 
 # Function to get filtered overlaps between two sf layers
@@ -27,6 +30,33 @@ get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, threshold)
   
   return(inter)
 }
+
+# Step 0: Load all the upazillas
+upazillas91 <- st_read("./SpatialCleaning/dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
+  st_transform(3106) %>%
+  select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
+  clean_names() %>%
+  mutate_if(is.character, tolower) %>%
+  mutate(area91 = st_area(geometry) %>% drop_units())
+
+upazillas01 <- st_read("./SpatialCleaning/dataset/geo3_bd2001/geo3_bd2001.shp", quiet=TRUE) %>%
+  st_transform(3106) %>%
+  select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
+  clean_names() %>%
+  mutate_if(is.character, tolower) %>%
+  mutate(area01 = st_area(geometry) %>% drop_units())
+
+upazillas11 <- st_read("./SpatialCleaning/dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
+  st_transform(3106) %>%
+  select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
+  clean_names() %>%
+  mutate_if(is.character, tolower) %>%
+  mutate(area11 = st_area(geometry) %>% drop_units())
+
+upazillas91 <- st_transform(upazillas91, crs=st_crs(upazillas91))
+upazillas01 <- st_transform(upazillas01, crs=st_crs(upazillas91))
+upazillas11 <- st_transform(upazillas11, crs=st_crs(upazillas91))
+
 
 # Step 1: Get overlap edges
 edges_91_01 <- get_overlap_pairs(upazillas91, upazillas01, "ipum1991", "ipum2001", "u91", "u01", threshold)
@@ -77,4 +107,32 @@ final_crosswalk <- bind_rows(
   xwalk11 %>% mutate(source = "upazillas11")
 )
 
-write.csv(final_crosswalk, file = "crosswalk.csv", row.names = FALSE)
+# write.csv(final_crosswalk, file = "crosswalk.csv", row.names = FALSE)
+
+# Step 8: Build mapping from ipumXXXX -> actual upazilla names
+names91 <- upazillas91 %>% st_drop_geometry() %>% select(ipum1991, name91 = admin_name)
+names01 <- upazillas01 %>% st_drop_geometry() %>% select(ipum2001, name01 = admin_name)
+names11 <- upazillas11 %>% st_drop_geometry() %>% select(ipum2011, name11 = admin_name)
+
+# Step 9: Add names to final_crosswalk
+final_crosswalk_named <- final_crosswalk %>%
+  left_join(names91, by = "ipum1991") %>%
+  left_join(names01, by = "ipum2001") %>%
+  left_join(names11, by = "ipum2011")
+
+# Step 10: Build the 'upazillas' column from names
+final_crosswalk_named <- final_crosswalk_named %>%
+  mutate(
+    upazillas = paste(
+      na.omit(c(name91, name01, name11)), collapse = "_"
+    )
+  ) %>%
+  select(-name91, -name01, -name11)
+
+# Step 11: Add geometry
+final_crosswalk_geo <- final_crosswalk_named %>%
+  left_join(merged_sf, by = "merged_id")
+
+# Optional: select and order relevant columns
+final_crosswalk_geo <- final_crosswalk_geo %>%
+  select(merged_id, upazillas, geometry, everything())
