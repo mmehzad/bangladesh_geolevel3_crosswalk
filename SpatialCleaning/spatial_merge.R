@@ -265,6 +265,10 @@ map_11_to_01_imper_union <- map_11_to_01_imper %>%
   
   mutate(inter_area = drop_units(st_area(geometry)))
 
+temp <- st_intersection(map_11_to_01_imper_union, map_11_to_01_per) %>%
+  mutate(inter_area = drop_units(st_area(geometry) / (1000^2))) %>%
+  filter(inter_area > 0.5)
+
 # manually sorting out the upzillas with reassignments along with division
 parent_id <- "060091"
 test <- c('060091008', '060091017', '060091020', '060091027', '060091035', '060091038',
