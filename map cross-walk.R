@@ -2,7 +2,7 @@ library(sf)
 library(dplyr)
 library(igraph)
 
-threshold <- 0.01  # 1% overlap
+threshold <- 0.001  # 0.1% overlap
 
 # Function to get filtered overlaps between two sf layers
 get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, threshold) {
