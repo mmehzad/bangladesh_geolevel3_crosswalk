@@ -33,21 +33,21 @@ get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, threshold)
 }
 
 # Step 0: Load all the upazillas
-upazillas91 <- st_read("./SpatialCleaning/dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
+upazillas91 <- st_read("./dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
   mutate_if(is.character, tolower) %>%
   mutate(area91 = st_area(geometry) %>% drop_units())
 
-upazillas01 <- st_read("./SpatialCleaning/dataset/geo3_bd2001/geo3_bd2001.shp", quiet=TRUE) %>%
+upazillas01 <- st_read("./dataset/geo3_bd2001/geo3_bd2001.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
   mutate_if(is.character, tolower) %>%
   mutate(area01 = st_area(geometry) %>% drop_units())
 
-upazillas11 <- st_read("./SpatialCleaning/dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
+upazillas11 <- st_read("./dataset/geo3_bd2011/geo3_bd2011.shp", quiet=TRUE) %>%
   st_transform(3106) %>%
   select(ADMIN_NAME, contains("IP"), contains("UP"), PARENT) %>%
   clean_names() %>%
@@ -134,10 +134,10 @@ final_crosswalk_named <- final_crosswalk_named %>%
 final_crosswalk_geo <- final_crosswalk_named %>%
   left_join(merged_sf, by = "merged_id")
 
-# Optional: select and order relevant columns
-final_crosswalk_geo <- final_crosswalk_geo %>%
-  select(merged_id, upazillas, geometry, everything())
-
-st_write(final_crosswalk_geo, "./SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp")
-
-write.csv(final_crosswalk_geo, "./SpatialCleaning/output/crosswalk_bdgeo3_91_11.csv")
+## Optional: select and order relevant columns
+#final_crosswalk_geo <- final_crosswalk_geo %>%
+#  select(merged_id, upazillas, geometry, everything())
+#
+#st_write(final_crosswalk_geo, "./SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp")
+#
+#write.csv(final_crosswalk_geo, "./SpatialCleaning/output/crosswalk_bdgeo3_91_11.csv")
