@@ -143,6 +143,12 @@ final_crosswalk_geo <- final_crosswalk_named %>%
 final_crosswalk_geo <- final_crosswalk_geo %>%
   select(merged_id, upazilas, geometry, everything())
 
+final_crosswalk_original_geo <- combined %>%
+  select(merged_id, admin_name, geometry, ipum1991, ipum2001, ipum2011)
+
 st_write(final_crosswalk_geo, "./output/crosswalk_bdgeo3_91_11.shp")
+st_write(final_crosswalk_original_geo, "./output/crosswalk_bdgeo3_91_11_original_geometry.shp")
 
 write.csv(final_crosswalk_geo, "./output/crosswalk_bdgeo3_91_11.csv")
+write.csv(final_crosswalk_original_geo, "./output/crosswalk_bdgeo3_91_11_original_geometry.csv")
+
