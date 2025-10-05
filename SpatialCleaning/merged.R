@@ -67,50 +67,57 @@ p22_gr <- ggplot(crosswalk_gr %>% filter(merged_id==upz_gr_id)) + geom_sf(aes(fi
 
 p22_91 / p22_01 / p22_11 / p22_gr
 
-#############################################
-# 2.3 Comparison Between Them by Population #
-#############################################
+###########################################
+# 2.3 Comparison Between Them by Variable #
+###########################################
 
-pop_noharm_91 <- final_data %>%
-  filter(!is.na(geo3_bd1991)) %>%
-  group_by(geo3_bd1991) %>%
-  summarise(pop = sum(perwt, na.rm=TRUE), .groups="drop") %>%
-  left_join(crosswalk %>% select(geo3_bd1991, merged_id, geometry), by="geo3_bd1991") %>%
-  mutate(year = 1991)
+plot_timeseries <- function(upz_id, summarise_expr, y_label, title_prefix) {
+  summarise_expr <- enquo(summarise_expr)
   
-pop_noharm_01 <- final_data %>%
-  filter(!is.na(geo3_bd2001)) %>%
-  group_by(geo3_bd2001) %>%
-  summarise(pop = sum(perwt, na.rm=TRUE), .groups="drop") %>%
-  left_join(crosswalk %>% select(geo3_bd2001, merged_id, geometry), by="geo3_bd2001") %>%
-  mutate(year = 2001)
+  var_noharm <- list()
+  
+  years <- c(1991, 2001, 2011)
+  geo3_bdIDs <- c("geo3_bd1991", "geo3_bd2001", "geo3_bd2011")
+  
+  for (i in seq_along(years)) {
+    year <- years[i]
+    geo3_bdID <- geo3_bdIDs[i]
+    
+    df <- final_data %>%
+      filter(!is.na(.data[[geo3_bdID]])) %>%
+      group_by(.data[[geo3_bdID]]) %>%
+      summarise(result = (!!summarise_expr), .groups="drop") %>%
+      left_join(crosswalk %>% select(all_of(geo3_bdID), merged_id, geometry), by = geo3_bdID) %>%
+      mutate(year = year)
+    
+    var_noharm[[i]] <- df  
+  }
+  
+  var_noharm <- bind_rows(var_noharm) %>%
+    filter(geo3_bd1991==upz_id | geo3_bd2001==upz_id | geo3_bd2011==upz_id)
+  
+  var_harm <- final_data %>%
+    group_by(year, merged_id) %>%
+    summarise(result = (!!summarise_expr), .groups="drop") %>%
+    left_join(crosswalk %>% select(merged_id, geometry), by="merged_id")
+  
+  #-# Now We Make Plots #-#
+  p_noharm <- ggplot(var_noharm, aes(x = factor(year), y = result, fill = factor(year))) +
+    geom_col() +
+    labs(title = paste(y_label, "of Upazila ID:", upz_id, "over Time (Un-Harmonized)"), x = "Year", y = y_label) +
+    theme_minimal() +
+    scale_fill_brewer(palette="Set2")
+  
+  p_harm <- ggplot(var_harm, aes(x = factor(year), y = result, fill = factor(year))) +
+    geom_col() +
+    labs(title = paste(y_label, "of Greated Region ID:", upz_gr_id, "over Time (Harmonized)"), x = "Year", y = y_label) +
+    theme_minimal() +
+    scale_fill_brewer(palette="Set2")
+  
+  return(list(unharmonized = p_noharm, harmonized = p_harm))
+}
 
-pop_noharm_11 <- final_data %>%
-  filter(!is.na(geo3_bd2011)) %>%
-  group_by(geo3_bd2011) %>%
-  summarise(pop = sum(perwt, na.rm=TRUE), .groups="drop") %>%
-  left_join(crosswalk %>% select(geo3_bd2011, merged_id, geometry), by="geo3_bd2011") %>%
-  mutate(year = 2011)
 
-pop_noharm <- bind_rows(pop_noharm_91, pop_noharm_01, pop_noharm_11) %>%
-  filter(geo3_bd1991==upz_id | geo3_bd2001==upz_id | geo3_bd2011==upz_id)
+plots <- plot_timeseries(upz_id, sum(perwt, na.rm=TRUE), y_label="Population")
 
-pop_harm <- final_data %>%
-  group_by(year, merged_id) %>%
-  summarise(pop = sum(perwt, na.rm = TRUE), .groups="drop") %>%
-  left_join(crosswalk %>% select(merged_id, geometry), by="merged_id")
-
-
-p23_noharm <- ggplot(pop_noharm, aes(x = factor(year), y = pop, fill = factor(year))) +
-  geom_col() +
-  labs(title = paste("Population of Upazila", toupper(upz_admin_name), "over Time"), x = "Year", y = "Population") +
-  theme_minimal() +
-  scale_fill_brewer(palette="Set2")
-
-p23_harm <- ggplot(pop_harm, aes(x = factor(year), y = pop, fill = factor(year))) +
-  geom_col() +
-  labs(title = paste("Population of Greated Region ID:", upz_gr_id, "over Time"), x = "Year", y = "Population") +
-  theme_minimal() +
-  scale_fill_brewer(palette="Set2")
-
-p23_noharm + p23_harm
+plots$unharmonized + plots$harmonized
