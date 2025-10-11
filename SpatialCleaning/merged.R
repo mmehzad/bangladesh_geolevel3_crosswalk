@@ -121,3 +121,72 @@ plot_timeseries <- function(upz_id, summarise_expr, y_label, title_prefix) {
 plots <- plot_timeseries(upz_id, sum(perwt, na.rm=TRUE), y_label="Population")
 
 plots$unharmonized + plots$harmonized
+
+######################################
+# 2.3 Variable Comparison Over A Map #
+######################################
+
+# Education -> school, lit, yrschool
+# Employment -> empstat, empstatd, labforce
+
+compute_variable_rate <- function(group_var, rate_condition, threshold, title, year_filter=NULL) {
+  
+  data <- final_data
+  if (!is.null(year_filter)) {
+    data <- final_data %>% filter(year == year_filter)
+  }
+  
+  summarized <- data %>%
+    group_by({{group_var}}) %>%
+    summarise(
+      total_pop = sum(perwt, na.rm = TRUE),
+      target_pop = sum(perwt * ({{rate_condition}}), na.rm = TRUE),
+      rate = target_pop / total_pop,
+      geometry = st_union(geometry),
+      .groups = "drop"
+    ) %>%
+    st_as_sf() %>%
+    mutate(above_threshold = rate >= threshold)
+  
+  p <- ggplot(summarized) +
+    geom_sf(aes(fill = ifelse(above_threshold, rate, NA)), color = NA) +
+    scale_fill_viridis_c(option = "plasma", na.value = "grey", name = "Rate") +
+    labs(title = title) +
+    theme_minimal() +
+    theme(axis.text = element_blank(), axis.title = element_blank())
+
+  return(p)    
+}
+
+lit_unharm <- compute_variable_rate(
+  group_var = geo3_bd2011,
+  rate_condition = (lit == 1),
+  threshold = 0.5,
+  title = "Literacy Rate (Unharmonized, 2001)"
+)
+
+lit_harm <- compute_variable_rate(
+  group_var = merged_id,
+  rate_condition = (lit == 1),
+  threshold = 0.5,
+  title = "Literacy Rate (Harmonized, 2011)",
+  year_filter = 2011
+)
+
+emp_unharm <- compute_variable_rate(
+  group_var = geo3_bd2011,
+  rate_condition = (empstat == 1),
+  threshold = 0.5, 
+  title = "Employment Rate (Unharmonized 2011)",
+)
+
+emp_harm <- compute_variable_rate(
+  group_var = merged_id,
+  rate_condition = (empstat == 1),
+  threshold = 0.5,
+  title = "Employment Rate (Harmonized 2011)",
+  year_filter = 2011
+)
+
+lit_unharm + lit_harm
+emp_unharm + emp_harm
