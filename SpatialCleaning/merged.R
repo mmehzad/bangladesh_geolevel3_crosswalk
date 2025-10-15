@@ -22,6 +22,10 @@ crosswalk <- crosswalk %>%
   mutate(across(c("merged_id", "ipum1991", "ipum2001", "ipum2011"), ~ as.numeric(.))) %>%
   rename(geo3_bd1991=ipum1991, geo3_bd2001=ipum2001, geo3_bd2011=ipum2011)
 
+crosswalk_gr <- crosswalk_gr %>%
+  mutate(across(c("merged_id", "ipum1991", "ipum2001", "ipum2011"), ~ as.numeric(.))) %>%
+  rename(geo3_bd1991=ipum1991, geo3_bd2001=ipum2001, geo3_bd2011=ipum2011)
+
 micro_data <- micro_data %>%
   mutate(across(starts_with("geo3_bd"), haven::zap_labels)) %>%
   mutate(across(starts_with("geo3_bd"), as.numeric))
@@ -30,6 +34,11 @@ rm(data); gc();
 
 final_data <- left_join(
   micro_data, crosswalk,
+  by=c("geo3_bd1991"="geo3_bd1991", "geo3_bd2001"="geo3_bd2001", "geo3_bd2011"="geo3_bd2011")
+)
+
+final_data_gr <- left_join(
+  micro_data, crosswalk_gr,
   by=c("geo3_bd1991"="geo3_bd1991", "geo3_bd2001"="geo3_bd2001", "geo3_bd2011"="geo3_bd2011")
 )
 
@@ -51,7 +60,39 @@ n_distinct(crosswalk$geo3_bd2001)
 n_distinct(crosswalk$geo3_bd2011)
 
 ######################################################
-# 2.2 Compare Harmonized and Non-Harmonized Upazilas #
+# 2.2a Compare Harmonized and Non-Harmonized Upazilas #
+######################################################
+
+p22a_91 <- ggplot(crosswalk %>% filter(!is.na(geo3_bd1991))) +
+  geom_sf() +
+  labs(title = "Unharmonized Upazilas @ 1991")
+
+p22a_01 <- ggplot(crosswalk %>% filter(!is.na(geo3_bd2001))) +
+  geom_sf() +
+  labs(title = "Unharmonized Upazilas @ 2001")
+
+p22a_11 <- ggplot(crosswalk %>% filter(!is.na(geo3_bd2011))) +
+  geom_sf() +
+  labs(title = "Unharmonized Upazilas @ 2011")
+
+p22a_gr <- ggplot(crosswalk_gr) + geom_sf() +
+  geom_sf() +
+  labs(title = "Harmonized Upazilas (Same for 1991, 2001 & 2011)")
+
+p22a_91 + p22a_01 + p22a_11 + p22a_gr
+
+# sanity check to see if the values match the upazila count:
+
+# length(unique((crosswalk %>% filter(!is.na(geo3_bd1991)))$geometry))
+# length(unique((crosswalk %>% filter(!is.na(geo3_bd2001)))$geometry))
+# length(unique((crosswalk %>% filter(!is.na(geo3_bd2011)))$geometry))
+
+# length(unique((crosswalk_gr %>% filter(!is.na(ipum1991)))$geometry))
+# length(unique((crosswalk_gr %>% filter(!is.na(ipum2001)))$geometry))
+# length(unique((crosswalk_gr %>% filter(!is.na(ipum2011)))$geometry))
+
+######################################################
+# 2.2b Compare Harmonized and Non-Harmonized Upazilas #
 ######################################################
 
 upz_id <- "30026095"
@@ -60,12 +101,12 @@ upz_id <- "30026095"
 upz_gr_id <- (crosswalk %>% filter(geo3_bd1991==upz_id))$merged_id
 upz_admin_name <- (crosswalk %>% filter(geo3_bd1991==upz_id))$admin_name
 
-p22_91 <- ggplot(crosswalk %>% filter(geo3_bd1991==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
-p22_01 <- ggplot(crosswalk %>% filter(geo3_bd2001==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
-p22_11 <- ggplot(crosswalk %>% filter(geo3_bd2011==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
-p22_gr <- ggplot(crosswalk_gr %>% filter(merged_id==upz_gr_id)) + geom_sf(aes(fill=as.factor(upazilas)))
+p22b_91 <- ggplot(crosswalk %>% filter(geo3_bd1991==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
+p22b_01 <- ggplot(crosswalk %>% filter(geo3_bd2001==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
+p22b_11 <- ggplot(crosswalk %>% filter(geo3_bd2011==upz_id)) + geom_sf(aes(fill=as.factor(admin_name)))
+p22b_gr <- ggplot(crosswalk_gr %>% filter(merged_id==upz_gr_id)) + geom_sf(aes(fill=as.factor(upazilas)))
 
-p22_91 / p22_01 / p22_11 / p22_gr
+p22b_91 / p22b_01 / p22b_11 / p22b_gr
 
 ###########################################
 # 2.3 Comparison Between Them by Variable #
@@ -122,71 +163,122 @@ plots <- plot_timeseries(upz_id, sum(perwt, na.rm=TRUE), y_label="Population")
 
 plots$unharmonized + plots$harmonized
 
-######################################
-# 2.3 Variable Comparison Over A Map #
-######################################
+#####################################################
+# 2.3a Application of This: Know The Bigger Picture #
+#####################################################
 
-# Education -> school, lit, yrschool
-# Employment -> empstat, empstatd, labforce
+plot_rate_map <- function(data, crosswalk, group_var, rate_condition, year_filter, threshold, title) {
 
-compute_variable_rate <- function(group_var, rate_condition, threshold, title, year_filter=NULL) {
+  data_filtered <- data %>%
+    filter(!is.na({{group_var}}), year == year_filter)
   
-  data <- final_data
-  if (!is.null(year_filter)) {
-    data <- final_data %>% filter(year == year_filter)
-  }
-  
-  summarized <- data %>%
+  summarized <- data_filtered %>%
     group_by({{group_var}}) %>%
     summarise(
       total_pop = sum(perwt, na.rm = TRUE),
       target_pop = sum(perwt * ({{rate_condition}}), na.rm = TRUE),
       rate = target_pop / total_pop,
-      geometry = st_union(geometry),
       .groups = "drop"
     ) %>%
-    st_as_sf() %>%
     mutate(above_threshold = rate >= threshold)
   
-  p <- ggplot(summarized) +
-    geom_sf(aes(fill = ifelse(above_threshold, rate, NA)), color = NA) +
+  # prevents blank regions (can happen when upazila/gr has no sample)
+  all_geo <- crosswalk %>%
+    select({{group_var}}, geometry) %>%
+    distinct()
+  
+  summarized_complete <- all_geo %>%
+    left_join(st_drop_geometry(summarized), by = as_label(enquo(group_var))) %>%
+    st_as_sf()
+  
+  p <- ggplot(summarized_complete) +
+    geom_sf(aes(geometry = geometry, fill = ifelse(above_threshold, rate, NA)), color = NA) +
     scale_fill_viridis_c(option = "plasma", na.value = "grey", name = "Rate") +
     labs(title = title) +
     theme_minimal() +
     theme(axis.text = element_blank(), axis.title = element_blank())
-
-  return(p)    
+  
+  return(p)
 }
 
-lit_unharm <- compute_variable_rate(
-  group_var = geo3_bd2011,
-  rate_condition = (lit == 1),
-  threshold = 0.5,
-  title = "Literacy Rate (Unharmonized, 2001)"
-)
-
-lit_harm <- compute_variable_rate(
-  group_var = merged_id,
-  rate_condition = (lit == 1),
-  threshold = 0.5,
-  title = "Literacy Rate (Harmonized, 2011)",
-  year_filter = 2011
-)
-
-emp_unharm <- compute_variable_rate(
+emp_unharm <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
   group_var = geo3_bd2011,
   rate_condition = (empstat == 1),
-  threshold = 0.5, 
-  title = "Employment Rate (Unharmonized 2011)",
+  year_filter = 2011,
+  threshold = 0.5,
+  title = "Employment Rate (Unharmonized, 2011)"
 )
 
-emp_harm <- compute_variable_rate(
+emp_harm <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk,
   group_var = merged_id,
   rate_condition = (empstat == 1),
+  year_filter = 2011,
   threshold = 0.5,
-  title = "Employment Rate (Harmonized 2011)",
-  year_filter = 2011
+  title = "Employment Rate (Harmonized, 2011)"
 )
 
-lit_unharm + lit_harm
+yrschool_unharm <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
+  group_var = geo3_bd2011,
+  rate_condition = (yrschool > 10),
+  year_filter = 2011,
+  threshold = 0.5,
+  title = "Education Rate (Unharmonized, 2011)"
+)
+
+yrschool_harm <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk,
+  group_var = merged_id,
+  rate_condition = (yrschool > 10),
+  year_filter = 2011,
+  threshold = 0.5,
+  title = "Education Rate (Harmonized, 2011)"
+)
+
 emp_unharm + emp_harm
+yrschool_unharm + yrschool_harm
+
+#####################################################
+# 2.3b Application of This: Know The Bigger Picture #
+#####################################################
+
+compare_mean_region <- function(var, merged_id_val, year_val) {
+  
+  var <- ensym(var)
+  data <- final_data %>%
+    filter(year == year_val)
+  
+  merged_mean <- data %>%
+    filter(merged_id == merged_id_val) %>%
+    summarise(
+      mean_merged = weighted.mean(!!var, w = perwt, na.rm = TRUE)
+    ) %>%
+    pull(mean_merged)
+  
+  constituent_mean <- data %>%
+    filter(merged_id == merged_id_val) %>%
+    group_by(admin_name) %>%
+    summarise(upz_mean = weighted.mean(!!var, w = perwt, na.rm = TRUE)) %>%
+    summarise(mean_constituent = mean(upz_mean, na.rm = TRUE)) %>%
+    pull(mean_constituent)
+  
+  return(
+    data.frame(
+      merged_id = merged_id_val,
+      year = year_val,
+      merged_mean = merged_mean,
+      mean_constituent = constituent_mean
+    )
+  )
+}
+
+# for merged_id = 432, the greater region constituents of many upazila. So, mean is different
+compare_mean_region(empstat, 432, 2011)
+# for merged_id = 1, the greater region is same as the upazila. So mean is same
+compare_mean_region(empstat, 1, 2011)
