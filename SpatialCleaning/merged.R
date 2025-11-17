@@ -192,7 +192,7 @@ plots$unharmonized + plots$harmonized
 # 2.3a Application of This: Know The Bigger Picture #
 #####################################################
 
-plot_rate_map <- function(data, crosswalk, group_var, rate_condition, year_filter, threshold, title) {
+plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_condition, year_filter, threshold, title) {
 
   data_filtered <- data %>%
     filter(!is.na({{group_var}}), year == year_filter)
@@ -200,8 +200,8 @@ plot_rate_map <- function(data, crosswalk, group_var, rate_condition, year_filte
   summarized <- data_filtered %>%
     group_by({{group_var}}) %>%
     summarise(
-      total_pop = sum(perwt, na.rm = TRUE),
-      target_pop = sum(perwt * ({{rate_condition}}), na.rm = TRUE),
+      total_pop = sum(perwt * ({{sample_condition}}), na.rm = TRUE),
+      target_pop = sum(perwt * ({{rate_condition}} & {{sample_condition}}), na.rm = TRUE),
       rate = target_pop / total_pop,
       .groups = "drop"
     ) %>%
@@ -226,48 +226,52 @@ plot_rate_map <- function(data, crosswalk, group_var, rate_condition, year_filte
   return(p)
 }
 
-emp_unharm <- plot_rate_map(
+inschool_unharm <- plot_rate_map(
   data = final_data,
   crosswalk = crosswalk,
   group_var = geo3_bd2011,
-  rate_condition = (empstat == 1),
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
   year_filter = 2011,
-  threshold = 0.5,
-  title = "Employment Rate (Unharmonized, 2011)"
+  threshold = 0.01,
+  title = "In School (Unharmonized, 2011)"
 )
 
-emp_harm <- plot_rate_map(
+inschool_harm <- plot_rate_map(
   data = final_data_gr,
   crosswalk = crosswalk,
   group_var = merged_id,
-  rate_condition = (empstat == 1),
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
   year_filter = 2011,
-  threshold = 0.5,
-  title = "Employment Rate (Harmonized, 2011)"
+  threshold = 0.01,
+  title = "In School (Harmonized, 2011)"
 )
 
-yrschool_unharm <- plot_rate_map(
+urbanization_unharm <- plot_rate_map(
   data = final_data,
   crosswalk = crosswalk,
   group_var = geo3_bd2011,
-  rate_condition = (yrschool > 10),
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
   year_filter = 2011,
-  threshold = 0.5,
-  title = "Education Rate (Unharmonized, 2011)"
+  threshold = 0.01,
+  title = "Urban (Unharmonized, 2011)"
 )
 
-yrschool_harm <- plot_rate_map(
+urbanization_harm <- plot_rate_map(
   data = final_data_gr,
   crosswalk = crosswalk,
   group_var = merged_id,
-  rate_condition = (yrschool > 10),
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
   year_filter = 2011,
-  threshold = 0.5,
-  title = "Education Rate (Harmonized, 2011)"
+  threshold = 0.01,
+  title = "Urban (Harmonized, 2011)"
 )
 
-emp_unharm + emp_harm
-yrschool_unharm + yrschool_harm
+inschool_harm + inschool_unharm
+urbanization_harm + urbanization_unharm
 
 #####################################################
 # 2.3b Application of This: Know The Bigger Picture #
