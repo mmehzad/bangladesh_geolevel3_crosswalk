@@ -1,34 +1,83 @@
 library(sf)
+library(units)
 library(dplyr)
 library(igraph)
-library(units)
+library(mclust)
 library(janitor)
 library(tidyverse)
 
 
-threshold <- 0.001  # 0.1% overlap
+
+# threshold <- 0.001  # 0.1% overlap
+threshold <- 0.9    # P(real | x) > 0.9
 
 # Function to get filtered overlaps between two sf layers
-get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, threshold) {
+
+# get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, threshold) {
+#   inter <- st_intersection(mapA, mapB)
+#   if (nrow(inter) == 0) return(data.frame())
+# 
+#   inter <- inter %>%
+#     mutate(
+#       area_intersection = st_area(geometry),
+#       areaA = st_area(mapA[match(.[[idA]], mapA[[idA]]), ]),
+#       areaB = st_area(mapB[match(.[[idB]], mapB[[idB]]), ]),
+#       propA = as.numeric(area_intersection / areaA),
+#       propB = as.numeric(area_intersection / areaB)
+#     ) %>%
+#     filter(propA > threshold | propB > threshold) %>%
+#     st_drop_geometry() %>%
+#     mutate(
+#       nodeA = paste0(prefixA, "_", .[[idA]]),
+#       nodeB = paste0(prefixB, "_", .[[idB]])
+#     ) %>%
+#     select(nodeA, nodeB)
+# 
+#   return(inter)
+# }
+get_overlap_pairs <- function(mapA, mapB, idA, idB, prefixA, prefixB, prob_cut = 0.9) {
+
   inter <- st_intersection(mapA, mapB)
   if (nrow(inter) == 0) return(data.frame())
-  
+
   inter <- inter %>%
     mutate(
       area_intersection = st_area(geometry),
       areaA = st_area(mapA[match(.[[idA]], mapA[[idA]]), ]),
       areaB = st_area(mapB[match(.[[idB]], mapB[[idB]]), ]),
       propA = as.numeric(area_intersection / areaA),
-      propB = as.numeric(area_intersection / areaB)
-    ) %>%
-    filter(propA > threshold | propB > threshold) %>%
+      propB = as.numeric(area_intersection / areaB),
+
+      # single overlap metric (very important)
+      overlap_metric = pmin(propA, propB)
+    )
+
+  # log-transform to reduce skew
+  # 1e-10 is to avoid log10(0) without significantly affecting the value
+  x <- log10(inter$overlap_metric + 1e-10)
+
+  # fit 2-component Gaussian mixture
+  fit <- Mclust(x, G = 2)
+
+  # posterior probabilities
+  post <- fit$z
+
+  # determine which component represents real overlaps
+  comp_means <- fit$parameters$mean
+  real_comp <- which.max(comp_means)
+
+  prob_real <- post[, real_comp]
+
+  inter <- inter %>%
+    mutate(prob_real = prob_real) %>%
+    filter(prob_real >= prob_cut) %>%
     st_drop_geometry() %>%
     mutate(
       nodeA = paste0(prefixA, "_", .[[idA]]),
       nodeB = paste0(prefixB, "_", .[[idB]])
     ) %>%
     select(nodeA, nodeB)
-  
+
   return(inter)
 }
 
@@ -63,6 +112,7 @@ upazilas11 <- st_transform(upazilas11, crs=st_crs(upazilas91))
 edges_91_01 <- get_overlap_pairs(upazilas91, upazilas01, "ipum1991", "ipum2001", "u91", "u01", threshold)
 edges_01_11 <- get_overlap_pairs(upazilas01, upazilas11, "ipum2001", "ipum2011", "u01", "u11", threshold)
 edges_91_11 <- get_overlap_pairs(upazilas91, upazilas11, "ipum1991", "ipum2011", "u91", "u11", threshold)
+
 
 # Step 2: Combine edges and build graph
 all_edges <- bind_rows(edges_91_01, edges_01_11, edges_91_11) %>% as.matrix()

@@ -10,16 +10,20 @@ library(scales)
 # 1. Load the Data #
 ####################
 
-load("C:/Users/smshi/OneDrive/Documents/large_datasets/BD HH or Micro data/IPUMS-I/data.RData")
+load("D:/Programming/Research/smshi_ra/SpatialCleaning/dataset/data.RData")
+# load("C:/Users/smshi/OneDrive/Documents/large_datasets/BD HH or Micro data/IPUMS-I/data.RData")
 
-micro_data <- data
+set.seed(42)
+micro_data <- data %>% slice_sample(n=10000)
 
 rm(data)
 
 # im using the crosswalk with original geometry, instead of the geometry of greater region
 # one difference from a coding perspective is between "admin_name" in one and "upazilas" in another
-crosswalk <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
-crosswalk_gr <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
+crosswalk <- st_read("D:/Programming/Research/smshi_ra/SpatialCleaning/output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
+# crosswalk <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
+crosswalk_gr <- st_read("D:/Programming/Research/smshi_ra/SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
+# crosswalk_gr <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
 
 
 crosswalk <- crosswalk %>% 
@@ -133,6 +137,25 @@ p22b_91 + p22b_01 + p22b_11 + p22b_gr
 # 2.3 Comparison Between Them by Variable #
 ###########################################
 
+var_noharm <- list()
+
+years <- c(1991, 2001, 2011)
+geo3_bdIDs <- c ("geo3_bd1991", "geo3_bd2001", "geo3_bd2011")
+
+for (i in seq_along(years)) {
+  year <- years[i]
+  geo3_bdID <- geo3_bdIDs[i]
+  
+  df <- final_data %>%
+    filter(!is.na(.data[[geo3_bdID]])) %>%
+    group_by(.data[[geo3_bdID]]) %>%
+    summarise(result = sum(perwt, na.rm=TRUE), .groups="drop") %>%
+    left_join(crosswalk %>% select(all_of(geo3_bdID), merged_id, geometry), by = geo3_bdID) %>%
+    mutate(year = year)
+  
+  var_noharm[[i]] <- df 
+}
+
 plot_timeseries <- function(upz_id, summarise_expr, y_label, title_prefix) {
   summarise_expr <- enquo(summarise_expr)
   
@@ -161,7 +184,8 @@ plot_timeseries <- function(upz_id, summarise_expr, y_label, title_prefix) {
   var_harm <- final_data %>%
     group_by(year, merged_id) %>%
     summarise(result = (!!summarise_expr), .groups="drop") %>%
-    left_join(crosswalk %>% select(merged_id, geometry), by="merged_id")
+    left_join(crosswalk %>% select(merged_id, geometry), by="merged_id") %>%
+    unique()
   
   #-# Now We Make Plots #-#
   p_noharm <- ggplot(var_noharm, aes(x = factor(year), y = result, fill = factor(year))) +
