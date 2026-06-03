@@ -91,13 +91,13 @@ p22a_91 + p22a_01 + p22a_11 + p22a_gr
 
 # sanity check to see if the values match the upazila count:
 
-# length(unique((crosswalk %>% filter(!is.na(geo3_bd1991)))$geometry))
-# length(unique((crosswalk %>% filter(!is.na(geo3_bd2001)))$geometry))
-# length(unique((crosswalk %>% filter(!is.na(geo3_bd2011)))$geometry))
-
-# length(unique((crosswalk_gr %>% filter(!is.na(ipum1991)))$geometry))
-# length(unique((crosswalk_gr %>% filter(!is.na(ipum2001)))$geometry))
-# length(unique((crosswalk_gr %>% filter(!is.na(ipum2011)))$geometry))
+length(unique((crosswalk %>% filter(!is.na(geo3_bd1991)))$geometry))  # upazilas91: 485 obs
+length(unique((crosswalk %>% filter(!is.na(geo3_bd2001)))$geometry))  # upazilas01: 507 obs
+length(unique((crosswalk %>% filter(!is.na(geo3_bd2011)))$geometry))  # upazilas11: 543 obs
+ 
+length(unique((crosswalk_gr %>% filter(!is.na(geo3_bd1991)))$geometry))  # same value 
+length(unique((crosswalk_gr %>% filter(!is.na(geo3_bd2001)))$geometry))  # for all 3
+length(unique((crosswalk_gr %>% filter(!is.na(geo3_bd2011)))$geometry))  # expected
 
 ######################################################
 # 2.2b Compare Harmonized and Non-Harmonized Upazilas #
@@ -120,7 +120,7 @@ p22b_01 <- ggplot(crosswalk %>% filter(geo3_bd2001==upz_id)) + geom_sf(aes(fill=
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
 p22b_11 <- ggplot(crosswalk %>% filter(geo3_bd2011==upz_id)) + geom_sf(aes(fill="red"))+
-  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, BimanBandar 2001"))+
+  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, BimanBandar 2011"))+
   scale_x_continuous(labels = label_number(accuracy = 0.1)) + # 2 decimal places for longitude
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
@@ -335,3 +335,4 @@ compare_mean_region <- function(var, merged_id_val, year_val) {
 compare_mean_region(empstat, 432, 2011)
 # for merged_id = 1, the greater region is same as the upazila. So mean is same
 compare_mean_region(empstat, 1, 2011)
+
