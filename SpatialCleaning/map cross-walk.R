@@ -7,7 +7,7 @@ library(janitor)
 library(tidyverse)
 library(patchwork)
 
-
+#setwd("C:/Users/smshi/OneDrive/Documents/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning")
 
 threshold <- 0.001  # 0.1% overlap
 # threshold <- 0.9    # P(real | x) > 0.9
@@ -132,7 +132,6 @@ compute_overlap_metrics <- function(mapA, mapB, idA, idB) {
   
   return(inter)
 }
-
 
 # Step 0: Load all the upazilas
 upazilas91 <- st_read("./dataset/geo3_bd1991/geo3_bd1991.shp", quiet=TRUE) %>%
@@ -300,8 +299,17 @@ final_crosswalk_geo <- final_crosswalk_geo %>%
 final_crosswalk_original_geo <- combined %>%
   select(merged_id, admin_name, geometry, ipum1991, ipum2001, ipum2011)
 
-st_write(final_crosswalk_geo, "./output/crosswalk_bdgeo3_91_11.shp")
-st_write(final_crosswalk_original_geo, "./output/crosswalk_bdgeo3_91_11_original_geometry.shp")
+final_crosswalk_original_geo[] <- lapply(final_crosswalk_original_geo, function(x) {
+  if (is.character(x)) enc2utf8(x) else x
+})
+
+final_crosswalk_geo[] <- lapply(final_crosswalk_geo, function(x) {
+  if (is.character(x)) enc2utf8(x) else x
+})
+
+
+st_write(final_crosswalk_geo, "./output/crosswalk_bdgeo3_91_11.shp", layer_options = "ENCODING=UTF-8", delete_dsn = TRUE)
+st_write(final_crosswalk_original_geo, "./output/crosswalk_bdgeo3_91_11_original_geometry.shp", layer_options = "ENCODING=UTF-8", delete_dsn = TRUE)
 
 write.csv(final_crosswalk_geo, "./output/crosswalk_bdgeo3_91_11.csv")
 write.csv(final_crosswalk_original_geo, "./output/crosswalk_bdgeo3_91_11_original_geometry.csv")
