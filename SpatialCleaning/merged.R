@@ -10,19 +10,20 @@ library(scales)
 # 1. Load the Data #
 ####################
 
-load("D:/Programming/Research/smshi_ra/SpatialCleaning/dataset/data.RData")
-# load("C:/Users/smshi/OneDrive/Documents/large_datasets/BD HH or Micro data/IPUMS-I/data.RData")
+# load("D:/Programming/Research/smshi_ra/SpatialCleaning/dataset/data.RData")
+load("C:/Users/smshi/OneDrive/datasets/IPUMS-I/data.RData")
 
-set.seed(42)
-micro_data <- data %>% slice_sample(n=10000)
+#set.seed(42)
+#micro_data <- data %>% slice_sample(n=10000)
+micro_data <- data
 
 rm(data)
 
 # im using the crosswalk with original geometry, instead of the geometry of greater region
 # one difference from a coding perspective is between "admin_name" in one and "upazilas" in another
-crosswalk <- st_read("D:/Programming/Research/smshi_ra/SpatialCleaning/output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
+crosswalk <- st_read("./output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
 # crosswalk <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11_original_geometry.shp", quiet=TRUE)
-crosswalk_gr <- st_read("D:/Programming/Research/smshi_ra/SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
+crosswalk_gr <- st_read("./output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
 # crosswalk_gr <- st_read("C:/Users/smshi/Dropbox/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/crosswalk_bdgeo3_91_11.shp", quiet=TRUE)
 
 
@@ -87,7 +88,15 @@ p22a_gr <- ggplot(crosswalk_gr) + geom_sf() +
   geom_sf() +
   ggtitle("Harmonized Upazilas")
 
-p22a_91 + p22a_01 + p22a_11 + p22a_gr
+p1 <- p22a_91 + p22a_01 + p22a_11 + p22a_gr
+
+ggsave(
+  "C:/Users/smshi/OneDrive/Documents/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning/output/graphs/plot1.png",
+  plot = p1,
+  width = 8,   # increase size
+  units = "in",
+  dpi = 600
+)
 
 # sanity check to see if the values match the upazila count:
 
@@ -110,28 +119,30 @@ upz_gr_id <- (crosswalk %>% filter(geo3_bd1991==upz_id))$merged_id
 upz_admin_name <- (crosswalk %>% filter(geo3_bd1991==upz_id))$admin_name
 
 p22b_91 <- ggplot(crosswalk %>% filter(geo3_bd1991==upz_id)) + geom_sf(aes(fill="red"))+
-  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara 1991"))+
+  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara 1991"), size=3)+
   scale_x_continuous(labels = label_number(accuracy = 0.1)) + # 2 decimal places for longitude
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
 p22b_01 <- ggplot(crosswalk %>% filter(geo3_bd2001==upz_id)) + geom_sf(aes(fill="red"))+
-  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, BimanBandar 2001"))+
+  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, Biman Bandar 2001"), size=3)+
   scale_x_continuous(labels = label_number(accuracy = 0.1)) + # 2 decimal places for longitude
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
 p22b_11 <- ggplot(crosswalk %>% filter(geo3_bd2011==upz_id)) + geom_sf(aes(fill="red"))+
-  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, BimanBandar 2011"))+
+  theme(legend.position = "none") + geom_sf_label(aes(label = "Uttara, Biman Bandar 2011"), size=3)+
   scale_x_continuous(labels = label_number(accuracy = 0.1)) + # 2 decimal places for longitude
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
 p22b_gr <- ggplot(crosswalk_gr %>% filter(merged_id==upz_gr_id)) + geom_sf(aes(fill="red"))+
-  theme(legend.position = "none") + geom_sf_label(aes(label = "Greater Region Containing Uttara"))+
+  theme(legend.position = "none") + geom_sf_label(aes(label = "Greater Region Containing Uttara"), size=3)+
   scale_x_continuous(labels = label_number(accuracy = 0.1)) + # 2 decimal places for longitude
   scale_y_continuous(labels = label_number(accuracy = 0.1)) + labs(y = "", x = "")
 
-p22b_91 / p22b_01 / p22b_11 / p22b_gr
+p2a <- p22b_91 / p22b_01 / p22b_11 / p22b_gr
+p2a
 
-p22b_91 + p22b_01 + p22b_11 + p22b_gr
+p2b <- p22b_91 + p22b_01 + p22b_11 + p22b_gr
+p2b
 
 ###########################################
 # 2.3 Comparison Between Them by Variable #
@@ -210,7 +221,8 @@ plot_timeseries <- function(upz_id, summarise_expr, y_label, title_prefix) {
 
 plots <- plot_timeseries(upz_id, sum(perwt, na.rm=TRUE), y_label="Population")
 
-plots$unharmonized + plots$harmonized
+p3 <- plots$unharmonized + plots$harmonized
+p3
 
 #####################################################
 # 2.3a Application of This: Know The Bigger Picture #
@@ -294,8 +306,9 @@ urbanization_harm <- plot_rate_map(
   title = "Urban (Harmonized, 2011)"
 )
 
-inschool_harm + inschool_unharm
-urbanization_harm + urbanization_unharm
+p4 <- inschool_harm + inschool_unharm
+p4
+p5 <- urbanization_harm + urbanization_unharm
 
 #####################################################
 # 2.3b Application of This: Know The Bigger Picture #
