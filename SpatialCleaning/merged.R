@@ -248,15 +248,21 @@ multi_geo3_merged_ids <- geo3_merged_membership %>%
   filter(n_geo3 > 1) %>%
   pull(merged_id)
 
-# These are the 2011 constituent geolevel-3s belonging to the relevant merged
-# regions. They are analyzed separately in each unharmonized map.
-multi_geo3_constituents_2011 <- geo3_merged_membership %>%
-  filter(
-    census_geo3 == "geo3_bd2011",
-    merged_id %in% multi_geo3_merged_ids
-  ) %>%
-  pull(geo3_id) %>%
-  unique()
+# Return a year's constituent geolevel-3s belonging to the relevant merged
+# regions. These IDs are analyzed separately in the unharmonized maps.
+get_multi_geo3_constituents <- function(census_geo3_name) {
+  geo3_merged_membership %>%
+    filter(
+      census_geo3 == census_geo3_name,
+      merged_id %in% multi_geo3_merged_ids
+    ) %>%
+    pull(geo3_id) %>%
+    unique()
+}
+
+multi_geo3_constituents_1991 <- get_multi_geo3_constituents("geo3_bd1991")
+multi_geo3_constituents_2001 <- get_multi_geo3_constituents("geo3_bd2001")
+multi_geo3_constituents_2011 <- get_multi_geo3_constituents("geo3_bd2011")
 
 plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_condition,
                           year_filter, threshold, analyzed_group_ids, title) {
@@ -318,6 +324,54 @@ plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_con
   return(p)
 }
 
+inschool_unharm_1991 <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
+  group_var = geo3_bd1991,
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
+  year_filter = 1991,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_1991,
+  title = "In School (Unharmonized, 1991)"
+)
+
+inschool_harm_1991 <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk_gr,
+  group_var = merged_id,
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
+  year_filter = 1991,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
+  title = "In School (Harmonized, 1991)"
+)
+
+inschool_unharm_2001 <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
+  group_var = geo3_bd2001,
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
+  year_filter = 2001,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_2001,
+  title = "In School (Unharmonized, 2001)"
+)
+
+inschool_harm_2001 <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk_gr,
+  group_var = merged_id,
+  sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
+  rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
+  year_filter = 2001,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
+  title = "In School (Harmonized, 2001)"
+)
+
 inschool_unharm <- plot_rate_map(
   data = final_data,
   crosswalk = crosswalk,
@@ -340,6 +394,54 @@ inschool_harm <- plot_rate_map(
   threshold = 0.01,
   analyzed_group_ids = multi_geo3_merged_ids,
   title = "In School (Harmonized, 2011)"
+)
+
+urbanization_unharm_1991 <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
+  group_var = geo3_bd1991,
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
+  year_filter = 1991,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_1991,
+  title = "Urban (Unharmonized, 1991)"
+)
+
+urbanization_harm_1991 <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk_gr,
+  group_var = merged_id,
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
+  year_filter = 1991,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
+  title = "Urban (Harmonized, 1991)"
+)
+
+urbanization_unharm_2001 <- plot_rate_map(
+  data = final_data,
+  crosswalk = crosswalk,
+  group_var = geo3_bd2001,
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
+  year_filter = 2001,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_2001,
+  title = "Urban (Unharmonized, 2001)"
+)
+
+urbanization_harm_2001 <- plot_rate_map(
+  data = final_data_gr,
+  crosswalk = crosswalk_gr,
+  group_var = merged_id,
+  sample_condition = (urban %in% c(1, 2)),
+  rate_condition = (urban == 2),
+  year_filter = 2001,
+  threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
+  title = "Urban (Harmonized, 2001)"
 )
 
 urbanization_unharm <- plot_rate_map(
@@ -366,9 +468,14 @@ urbanization_harm <- plot_rate_map(
   title = "Urban (Harmonized, 2011)"
 )
 
-p4 <- inschool_harm + inschool_unharm
+p4 <- (inschool_harm_1991 + inschool_unharm_1991) /
+  (inschool_harm_2001 + inschool_unharm_2001) /
+  (inschool_harm + inschool_unharm)
 p4
-p5 <- urbanization_harm + urbanization_unharm
+p5 <- (urbanization_harm_1991 + urbanization_unharm_1991) /
+  (urbanization_harm_2001 + urbanization_unharm_2001) /
+  (urbanization_harm + urbanization_unharm)
+p5
 
 #####################################################
 # 2.3b Application of This: Know The Bigger Picture #
