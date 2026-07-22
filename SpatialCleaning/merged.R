@@ -216,10 +216,47 @@ plots$unharmonized + plots$harmonized
 # 2.3a Application of This: Know The Bigger Picture #
 #####################################################
 
-plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_condition, year_filter, threshold, title) {
+# Map each year-specific geolevel-3 to its merged region. A merged region is
+# relevant when it contains more than one distinct geolevel-3 across the three
+# census years.
+geo3_merged_membership <- crosswalk %>%
+  st_drop_geometry() %>%
+  select(merged_id, starts_with("geo3_bd")) %>%
+  pivot_longer(
+    cols = starts_with("geo3_bd"),
+    names_to = "census_geo3",
+    values_to = "geo3_id"
+  ) %>%
+  filter(!is.na(geo3_id)) %>%
+  distinct(merged_id, census_geo3, geo3_id)
 
+multi_geo3_merged_ids <- geo3_merged_membership %>%
+  distinct(merged_id, geo3_id) %>%
+  count(merged_id, name = "n_geo3") %>%
+  filter(n_geo3 > 1) %>%
+  pull(merged_id)
+
+# These are the 2011 constituent geolevel-3s belonging to the relevant merged
+# regions. They are analyzed separately in each unharmonized map.
+multi_geo3_constituents_2011 <- geo3_merged_membership %>%
+  filter(
+    census_geo3 == "geo3_bd2011",
+    merged_id %in% multi_geo3_merged_ids
+  ) %>%
+  pull(geo3_id) %>%
+  unique()
+
+plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_condition,
+                          year_filter, threshold, analyzed_group_ids, title) {
+
+  # For harmonized maps, group_var and analyzed_group_ids are merged IDs.
+  # For unharmonized maps, they are the constituent geolevel-3 IDs.
   data_filtered <- data %>%
-    filter(!is.na({{group_var}}), year == year_filter)
+    filter(
+      !is.na({{group_var}}),
+      year == year_filter,
+      {{group_var}} %in% analyzed_group_ids
+    )
   
   summarized <- data_filtered %>%
     group_by({{group_var}}) %>%
@@ -232,16 +269,35 @@ plot_rate_map <- function(data, crosswalk, group_var, sample_condition, rate_con
     mutate(above_threshold = rate >= threshold)
   
   # prevents blank regions (can happen when upazila/gr has no sample)
+  group_var_name <- as_label(enquo(group_var))
+  geometry_vars <- unique(c("merged_id", group_var_name))
+
   all_geo <- crosswalk %>%
-    select({{group_var}}, geometry) %>%
+    filter(!is.na({{group_var}})) %>%
+    select(all_of(geometry_vars), geometry) %>%
     distinct()
   
   summarized_complete <- all_geo %>%
-    left_join(st_drop_geometry(summarized), by = as_label(enquo(group_var))) %>%
+    left_join(st_drop_geometry(summarized), by = group_var_name) %>%
+    mutate(
+      is_analyzed = .data[[group_var_name]] %in% analyzed_group_ids,
+      rate_to_plot = if_else(
+        is_analyzed & coalesce(above_threshold, FALSE),
+        rate,
+        NA_real_
+      )
+    ) %>%
     st_as_sf()
   
   p <- ggplot(summarized_complete) +
-    geom_sf(aes(geometry = geometry, fill = ifelse(above_threshold, rate, NA)), color = NA) +
+    geom_sf(aes(geometry = geometry, fill = rate_to_plot), color = NA) +
+    # Show the separate constituent boundaries in the unharmonized maps.
+    geom_sf(
+      data = summarized_complete %>% filter(is_analyzed),
+      fill = NA,
+      color = "white",
+      linewidth = 0.15
+    ) +
     scale_fill_viridis_c(option = "plasma", na.value = "grey", name = "Rate") +
     labs(title = title) +
     theme_minimal() +
@@ -258,17 +314,19 @@ inschool_unharm <- plot_rate_map(
   rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
   year_filter = 2011,
   threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_2011,
   title = "In School (Unharmonized, 2011)"
 )
 
 inschool_harm <- plot_rate_map(
   data = final_data_gr,
-  crosswalk = crosswalk,
+  crosswalk = crosswalk_gr,
   group_var = merged_id,
   sample_condition = ((5 <= age & age <= 17) & (school %in% c(1, 2, 3, 4))),
   rate_condition = ((5 <= age & age <= 17) & (school %in% c(1))),
   year_filter = 2011,
   threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
   title = "In School (Harmonized, 2011)"
 )
 
@@ -280,17 +338,19 @@ urbanization_unharm <- plot_rate_map(
   rate_condition = (urban == 2),
   year_filter = 2011,
   threshold = 0.01,
+  analyzed_group_ids = multi_geo3_constituents_2011,
   title = "Urban (Unharmonized, 2011)"
 )
 
 urbanization_harm <- plot_rate_map(
   data = final_data_gr,
-  crosswalk = crosswalk,
+  crosswalk = crosswalk_gr,
   group_var = merged_id,
   sample_condition = (urban %in% c(1, 2)),
   rate_condition = (urban == 2),
   year_filter = 2011,
   threshold = 0.01,
+  analyzed_group_ids = multi_geo3_merged_ids,
   title = "Urban (Harmonized, 2011)"
 )
 
