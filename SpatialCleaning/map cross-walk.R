@@ -7,7 +7,7 @@ library(janitor)
 library(tidyverse)
 library(patchwork)
 
-#setwd("C:/Users/smshi/OneDrive/Documents/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning")
+setwd("C:/Research/bangladesh_geolevel3_crosswalk/SpatialCleaning")
 
 threshold <- 0.001  # 0.1% overlap
 # threshold <- 0.9    # P(real | x) > 0.9
